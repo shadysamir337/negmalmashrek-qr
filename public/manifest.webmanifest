@@ -1,0 +1,19 @@
+{
+    "name": "QR Attendance",
+    "short_name": "QR Attend",
+    "description": "QR-code attendance tracking with live records, archives, and per-person analytics.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#f8fafc",
+    "theme_color": "#6366f1",
+    "icons": [
+        {
+            "src": "/icon.svg",
+            "type": "image/svg+xml",
+            "sizes": "any",
+            "purpose": "any maskable"
+        }
+    ]
+}

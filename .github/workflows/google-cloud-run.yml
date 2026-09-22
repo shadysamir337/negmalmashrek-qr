@@ -1,0 +1,97 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ vars.GCP_REGION }}
+  CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+  GAR_LOCATION: ${{ vars.GAR_LOCATION }}
+  GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
+  IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/1042648282025/locations/global/workloadIdentityPools/github-actions/providers/github' }}
+  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deploy@stepforward-507508.iam.gserviceaccount.com' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment variables
+        run: |
+          test -n "$GCP_PROJECT_ID"
+          test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GCP_SERVICE_ACCOUNT"
+
+      - name: Prepare deployment settings
+        run: |
+          GCP_REGION="${GCP_REGION:-us-central1}"
+          CLOUD_RUN_SERVICE="${CLOUD_RUN_SERVICE:-qrcode-scanner}"
+          GAR_LOCATION="${GAR_LOCATION:-$GCP_REGION}"
+          GAR_REPOSITORY="${GAR_REPOSITORY:-qrcode-scanner}"
+          IMAGE_NAME="${IMAGE_NAME:-qrcode-scanner}"
+
+          echo "GCP_REGION=$GCP_REGION" >> "$GITHUB_ENV"
+          echo "CLOUD_RUN_SERVICE=$CLOUD_RUN_SERVICE" >> "$GITHUB_ENV"
+          echo "GAR_LOCATION=$GAR_LOCATION" >> "$GITHUB_ENV"
+          echo "GAR_REPOSITORY=$GAR_REPOSITORY" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${GAR_LOCATION}-docker.pkg.dev" --quiet
+
+      - name: Create Artifact Registry repository if needed
+        run: |
+          gcloud artifacts repositories describe "$GAR_REPOSITORY" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GAR_LOCATION" \
+          || gcloud artifacts repositories create "$GAR_REPOSITORY" \
+            --project "$GCP_PROJECT_ID" \
+            --location "$GAR_LOCATION" \
+            --repository-format docker \
+            --description "Docker images for $CLOUD_RUN_SERVICE"
+
+      - name: Build and push image
+        run: |
+          IMAGE_URI="${GAR_LOCATION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          docker build \
+            --build-arg VITE_FIREBASE_API_KEY="${{ vars.VITE_FIREBASE_API_KEY }}" \
+            --build-arg VITE_FIREBASE_AUTH_DOMAIN="${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}" \
+            --build-arg VITE_FIREBASE_PROJECT_ID="${{ vars.VITE_FIREBASE_PROJECT_ID }}" \
+            --build-arg VITE_FIREBASE_STORAGE_BUCKET="${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}" \
+            --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID="${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}" \
+            --build-arg VITE_FIREBASE_APP_ID="${{ vars.VITE_FIREBASE_APP_ID }}" \
+            --build-arg VITE_ADMIN_EMAIL="${{ vars.VITE_ADMIN_EMAIL }}" \
+            --build-arg VITE_RECAPTCHA_V3_SITE_KEY="${{ vars.VITE_RECAPTCHA_V3_SITE_KEY }}" \
+            -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --image "$IMAGE_URI" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --platform managed \
+            --allow-unauthenticated \
+            --quiet

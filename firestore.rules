@@ -1,0 +1,196 @@
+rules_version = '2';
+
+// Hardened Firestore rules for the QR Attendance app.
+//
+// Roles:
+// - Root admin = signed-in user with email == 'admin@negmalmashrek.com'
+// - Admin      = /users/{uid} doc with role == 'admin' (created from the
+//                Users page) — same powers as the root admin
+// - Scanner    = /users/{uid} doc with role == 'scanner' — can read people/
+//                attendance and record check-ins, nothing else
+// - Anonymous  = only allowed to read events and bump interestedCount
+//                (public event share page). No scanning from outside.
+//
+// Defense-in-depth:
+// - Strict field validation (length, type, format).
+// - Attendance docs must use deterministic IDs `personId_date_type` to
+//   atomically enforce "one check-in per person per meeting per day".
+// - Attendance create requires the referenced personId to actually
+//   exist in /people, preventing fake/spam records.
+//
+// Meeting types: 'sunday' (Sunday Meeting), 'friday' (NegmAlMashrek Meeting),
+// 'friday-service' (Church Service, Friday morning), 'events' (special
+// events, any date). Docs created before meeting types existed use the
+// legacy ID `personId_date` with no `type` field — the app infers their
+// meeting from the record's date/time when reading.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isRootAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'admin@negmalmashrek.com';
+    }
+
+    // Any account the admin created from the Users page (any role).
+    function isAppUser() {
+      return isRootAdmin()
+        || (isSignedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid)));
+    }
+
+    function isAdmin() {
+      return isRootAdmin()
+        || (isSignedIn()
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    function validName(s) {
+      return s is string && s.size() > 0 && s.size() <= 100;
+    }
+
+    function validDate(s) {
+      return s is string && s.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function validTime(s) {
+      return s is string && s.matches('^[0-9]{2}:[0-9]{2}:[0-9]{2}$');
+    }
+
+    function validMeetingType(s) {
+      return s is string && s in ['sunday', 'friday', 'friday-service', 'events'];
+    }
+
+    // ------------- users (accounts & roles) -------------
+    match /users/{uid} {
+      // Admins manage the list; everyone may read their own role doc
+      // (the app needs it to know what the signed-in user can do).
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['email', 'name', 'role', 'createdAt'])
+        && request.resource.data.role in ['admin', 'scanner']
+        && validName(request.resource.data.name)
+        && request.resource.data.email is string
+        && request.resource.data.email.size() <= 120;
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------- people -------------
+    match /people/{id} {
+      allow read: if isAppUser();
+
+      allow create: if isAdmin()
+        && validName(request.resource.data.name)
+        && request.resource.data.keys().hasOnly(['name', 'createdAt']);
+
+      allow update: if isAdmin()
+        && validName(request.resource.data.name);
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------- attendance -------------
+    match /attendance/{id} {
+      allow read: if isAppUser();
+
+      // Any app account (admin or scanner) can create a check-in, but:
+      //  - the doc ID MUST be `${personId}_${date}_${type}` so duplicates
+      //    per meeting are impossible
+      //  - the type must be one of the known meetings
+      //  - the personId must reference an existing person
+      //  - all fields must be well-formed
+      // TRANSITIONAL: the legacy `${personId}_${date}` format (no type) is
+      // still accepted so the previous app build keeps working during the
+      // rollout. Remove the legacy branch ~1 week after the new app deploy.
+      allow create: if isAppUser()
+        && request.resource.data.personId is string
+        && request.resource.data.personId.size() > 0
+        && validName(request.resource.data.name)
+        && validDate(request.resource.data.date)
+        && validTime(request.resource.data.time)
+        && exists(/databases/$(database)/documents/people/$(request.resource.data.personId))
+        && (!('late' in request.resource.data) || request.resource.data.late is bool)
+        && (
+             (
+               request.resource.data.keys().hasOnly(
+                 ['personId', 'name', 'date', 'time', 'type', 'timestamp', 'late']
+               )
+               && validMeetingType(request.resource.data.type)
+               && id == request.resource.data.personId + '_' + request.resource.data.date + '_' + request.resource.data.type
+             )
+             || (
+               request.resource.data.keys().hasOnly(
+                 ['personId', 'name', 'date', 'time', 'timestamp']
+               )
+               && id == request.resource.data.personId + '_' + request.resource.data.date
+             )
+           );
+
+      // Records are immutable once created.
+      allow update: if false;
+
+      // Only admin can delete (used by "Clear all").
+      allow delete: if isAdmin();
+    }
+
+    // ------------- archives (year-end) -------------
+    // /archives/{year}                  -> summary doc
+    // /archives/{year}/records/{recId}  -> frozen attendance records
+    //
+    // Read: any app account.
+    // Write/delete: admin only.
+    match /archives/{yearId} {
+      allow read: if isAppUser();
+      allow create, update, delete: if isAdmin();
+
+      match /records/{recordId} {
+        allow read: if isAppUser();
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    // ------------- events -------------
+    // Events stay readable by ANY signed-in user, including anonymous —
+    // the public share page (/event/:id) relies on this.
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      // Anyone signed in (incl. anonymous visitors) may bump the interest
+      // count; admins can update anything.
+      allow update: if isAdmin() || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['interestedCount']));
+
+      // People who marked interest from the public share page. Anonymous
+      // visitors may add THEMSELVES (name required, phone optional) but the
+      // list of names/phones is readable by admins only (privacy).
+      match /interested/{interestId} {
+        allow read: if isAdmin();
+        allow create: if isSignedIn()
+          && request.resource.data.keys().hasOnly(['name', 'phone', 'createdAt'])
+          && validName(request.resource.data.name)
+          && (!('phone' in request.resource.data)
+              || (request.resource.data.phone is string && request.resource.data.phone.size() <= 30));
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ------------- app settings (org-wide config) -------------
+    // /settings/general holds shared config (e.g. per-meeting late cutoffs).
+    // Any app account reads it (scanners + admins); only admins change it.
+    match /settings/{docId} {
+      allow read: if isAppUser();
+      allow write: if isAdmin();
+    }
+
+    // Block everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
