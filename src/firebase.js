@@ -7,13 +7,13 @@ import {
 } from 'firebase/app-check'
 
 export const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyBAARr3wD0rQIffoyc3WUERKS4NTYLc7Uk',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'negmalmashrek-qr-app.firebaseapp.com',
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'negmalmashrek-qr-app',
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'negmalmashrek-qr-app.firebasestorage.app',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '204475328485',
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:204475328485:web:6aaed8729703a7890d310c',
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-DFTKGER2DP',
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDqP7uAnRWlFUiAVdK-QgtKlOZpZ5dvjiQ',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'alibaba-507510.firebaseapp.com',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'alibaba-507510',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'alibaba-507510.firebasestorage.app',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '339348239744',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:339348239744:web:d199344176b0b089c87d65',
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NV3TGM11F1',
 }
 
 // The root admin account. Additional admins/scanners are created from the
