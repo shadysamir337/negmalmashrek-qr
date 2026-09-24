@@ -7,18 +7,18 @@ import {
 } from 'firebase/app-check'
 
 export const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDqP7uAnRWlFUiAVdK-QgtKlOZpZ5dvjiQ',
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'alibaba-507510.firebaseapp.com',
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'alibaba-507510',
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'alibaba-507510.firebasestorage.app',
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '339348239744',
-    appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:339348239744:web:d199344176b0b089c87d65',
-    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-NV3TGM11F1',
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
 // The root admin account. Additional admins/scanners are created from the
 // Users page and live in the /users collection with a role field.
-export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'admin@negmalmashrek.com'
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL
 
 const app = initializeApp(firebaseConfig)
 
