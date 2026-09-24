@@ -3,7 +3,7 @@ name: Deploy to Google Cloud Run
 on:
   push:
     branches:
-      - main
+      - master
   workflow_dispatch:
 
 env:
@@ -13,8 +13,8 @@ env:
   GAR_LOCATION: ${{ vars.GAR_LOCATION }}
   GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
   IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/339348239744/locations/global/workloadIdentityPools/github-actions/providers/github' }}
-  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-cloud-run-deploy@alibaba-507510.iam.gserviceaccount.com' }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
 jobs:
   deploy:
@@ -30,6 +30,11 @@ jobs:
       - name: Validate deployment variables
         run: |
           test -n "$GCP_PROJECT_ID"
+          test -n "$GCP_REGION"
+          test -n "$CLOUD_RUN_SERVICE"
+          test -n "$GAR_LOCATION"
+          test -n "$GAR_REPOSITORY"
+          test -n "$IMAGE_NAME"
           test -n "$GCP_WORKLOAD_IDENTITY_PROVIDER"
           test -n "$GCP_SERVICE_ACCOUNT"
 
