@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
 
 env:
-  GCP_PROJECT_ID: stepforward-507508
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'casa-515319' }}
   GCP_REGION: ${{ vars.GCP_REGION }}
   CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
   GAR_LOCATION: ${{ vars.GAR_LOCATION }}
   GAR_REPOSITORY: ${{ vars.GAR_REPOSITORY }}
   IMAGE_NAME: ${{ vars.IMAGE_NAME }}
-  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+  GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/1029867267926/locations/global/workloadIdentityPools/github-pool/providers/github-provider' }}
+  GCP_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT || 'github-actions@casa-515319.iam.gserviceaccount.com' }}
 
 jobs:
   deploy:
